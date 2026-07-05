@@ -88,9 +88,24 @@ func cardParser(deck []string) ([]int, int) {
 	return newDeck, count
 }
 
+func instantBJcheck(count int) bool {
+	if count == 21 {
+		return true
+	}
+	return false
+}
+
+func hit(pcards []string, deck []string) ([]string, []string) {
+	choice, deck := randomPicker(deck)
+	pcardsplus := append(pcards, choice)
+	return deck, pcardsplus
+}
+
 func main() {
 	player := Player{}
 	diller := Diller{}
+	var wantToHit string = "h"
+
 	fmt.Println("let's play Black Jack!")
 	deck := deckCreator(52)
 	fmt.Println("Deck is", deck)
@@ -98,10 +113,22 @@ func main() {
 
 	deck = FirstDistribution(&player, &diller, deck)
 
-	fmt.Println("Your cards is:", player.cards)
-	fmt.Println("Diller cards is:", diller.cards)
+	_, dillerCount := cardParser(diller.cards)
+	_, playerCount := cardParser(player.cards)
 
-	dillerDeck, count := cardParser(diller.cards)
+	fmt.Println("Diller cards is:", diller.cards, dillerCount)
+	fmt.Println("Your cards is:", player.cards, playerCount)
 
-	fmt.Println("Check for diller instant BJ:", dillerDeck, count)
+	fmt.Println("Check for diller instant BJ:", instantBJcheck(dillerCount))
+	fmt.Println("Check for player instant BJ:", instantBJcheck(playerCount))
+
+	for wantToHit == "h" {
+		fmt.Scanln(&wantToHit)
+		fmt.Println("Press h to hit")
+		if wantToHit == "h" {
+			deck, player.cards = hit(player.cards, deck)
+			_, playerCount = cardParser(player.cards)
+			fmt.Println("Your cards is:", player.cards, playerCount)
+		}
+	}
 }
