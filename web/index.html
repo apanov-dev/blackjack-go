@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blackjack 21</title>
+
+  <!-- Подключаем Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Подключаем React и ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+
+  <!-- Подключаем Babel для компиляции JSX прямо в браузере -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-neutral-950">
+
+<!-- Контейнер, куда отрендерится React-приложение -->
+<div id="root"></div>
+
+<script type="text/babel">
+  const { useState, useCallback, useMemo, useRef } = React;
+
+  // Встроенные SVG-иконки вместо lucide-react
+  const Sparkles = ({className}) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3l1.912 5.813a2 2 0 001.275 1.275L21 12l-5.813 1.912a2 2 0 00-1.275 1.275L12 21l-1.912-5.813a2 2 0 00-1.275-1.275L3 12l5.813-1.912a2 2 0 001.275-1.275L12 3z"/></svg>;
+  const Wallet = ({className}) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 12V8H6a2 2 0 01-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 00-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg>;
+  const Plus = ({className}) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+  const X = ({className}) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+  const LogOut = ({className}) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
+
+  const SUITS = ["H", "D", "C", "S"];
+  const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+
+  const SUIT_META = {
+    H: { symbol: "♥", color: "text-rose-600" },
+    D: { symbol: "♦", color: "text-rose-600" },
+    C: { symbol: "♣", color: "text-neutral-900" },
+    S: { symbol: "♠", color: "text-neutral-900" },
+  };
+
+  function createShuffledDeck() {
+    const deck = [];
+    for (const suit of SUITS) {
+      for (const rank of RANKS) {
+        deck.push({ suit, rank });
+      }
+    }
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    return deck;
+  }
+
+  function calculateScore(cards) {
+    let total = 0;
+    let aces = 0;
+    for (const c of cards) {
+      if (c.rank === "A") {
+        aces += 1;
+        total += 11;
+      } else if (["J", "Q", "K"].includes(c.rank)) {
+        total += 10;
+      } else {
+        total += parseInt(c.rank, 10);
+      }
+    }
+    while (total > 21 && aces > 0) {
+      total -= 10;
+      aces -= 1;
+    }
+    return total;
+  }
+
+  const BET_MIN = 5;
+  const CHIP_QUICK_ADDS = [5, 25, 100];
+
+  function PlayingCard({ card }) {
+    if (card.hidden) {
+      return (
+              <div
+                      className="w-16 h-24 rounded-lg border-2 border-white/80 shadow-xl shrink-0"
+                      style={{ backgroundImage: "repeating-linear-gradient(135deg, #0f6e46 0 7px, #0a5536 7px 14px)" }}
+              />
+      );
+    }
+    const meta = SUIT_META[card.suit] || { symbol: card.suit, color: "text-neutral-900" };
+    return (
+            <div className="w-16 h-24 rounded-lg bg-white shadow-xl shrink-0 flex flex-col items-center justify-center font-bold text-2xl border border-black/5">
+              <span className={`leading-none ${meta.color}`}>{card.rank}</span>
+              <span className={`text-3xl leading-none mt-0.5 ${meta.color}`}>{meta.symbol}</span>
+            </div>
+    );
+  }
+
+  function CardHand({ label, cards, score, badgeColor = "bg-emerald-500" }) {
+    return (
+            <div className="flex flex-col items-center">
+          <span className="text-[11px] tracking-widest text-emerald-100/60 uppercase mb-2">
+            {label}
+          </span>
+              <div className="relative flex items-center justify-center min-h-[96px]">
+                <div className="flex -space-x-6">
+                  {cards.map((c, i) => <PlayingCard key={i} card={c} />)}
+                </div>
+                {score !== undefined && (
+                        <span className={`ml-3 w-9 h-9 rounded-full ${badgeColor} text-white text-sm font-bold flex items-center justify-center shadow-md ring-2 ring-black/20 shrink-0`}>
+                {score}
+              </span>
+                )}
+              </div>
+            </div>
+    );
+  }
+
+  function Logo({ compact = false }) {
+    return (
+            <div className="flex items-center gap-1.5">
+              <Sparkles className="w-5 h-5 text-amber-400" />
+              <p className={`font-bold text-white ${compact ? "text-sm" : "text-base"}`}>BlackJack21</p>
+            </div>
+    );
+  }
+
+  function BalancePill({ balance }) {
+    return (
+            <span className="text-amber-400 font-semibold text-xs bg-black/40 px-2.5 py-1 rounded-full border border-amber-400/20">
+          ${balance.toFixed(2)}
+        </span>
+    );
+  }
+
+  function MainMenu({ balance, onPlay, onDeposit }) {
+    return (
+            <div className="flex flex-col h-full bg-neutral-950">
+              <div className="px-4 pt-6 flex justify-center"><Logo /></div>
+              <div className="flex-1 flex flex-col items-center justify-center px-6 gap-4">
+                <div
+                        className="w-full rounded-2xl px-4 py-4 flex items-center justify-between shadow-lg mb-2"
+                        style={{ background: "linear-gradient(135deg, #171717, #000000)", border: "1px solid rgba(251,191,36,0.35)", boxShadow: "0 0 24px rgba(251,191,36,0.08)" }}
+                >
+                  <div className="flex items-center gap-2 text-neutral-400 text-xs uppercase tracking-widest">
+                    <Wallet className="w-4 h-4 text-amber-400" /> Balance
+                  </div>
+                  <span className="text-amber-400 font-extrabold text-2xl tracking-tight">${balance.toFixed(2)}</span>
+                </div>
+                <button
+                        onClick={onDeposit}
+                        className="w-full py-4 rounded-xl font-extrabold text-lg tracking-wider text-neutral-900 shadow-xl"
+                        style={{ background: "linear-gradient(135deg, #fde68a, #f59e0b 55%, #d97706)" }}
+                >DEPOSIT</button>
+                <button
+                        onClick={onPlay}
+                        className="w-full py-4 rounded-xl font-extrabold text-lg tracking-wider text-white shadow-xl"
+                        style={{ background: "linear-gradient(160deg, #34d399 0%, #059669 45%, #065f46 100%)" }}
+                >PLAY NOW</button>
+              </div>
+            </div>
+    );
+  }
+
+  function BetControl({ bet, balance, onChange, disabled }) {
+    const clamp = (v) => Math.max(BET_MIN, Math.min(balance, v));
+    return (
+            <div className="bg-black/50 backdrop-blur rounded-xl px-4 py-3 border border-white/5">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] tracking-widest text-neutral-400 uppercase">Your Bet</p>
+                <p className="text-amber-400 font-bold text-sm">${bet.toFixed(2)}</p>
+              </div>
+              <div className="flex items-center justify-center gap-1.5">
+                {CHIP_QUICK_ADDS.slice().reverse().map((amt) => (
+                        <button key={`minus-${amt}`} onClick={() => onChange(clamp(bet - amt))} disabled={disabled || bet <= BET_MIN} className="px-2.5 py-1.5 rounded-full bg-neutral-800 border border-white/10 text-white text-xs font-bold shadow disabled:opacity-30">
+                          -{amt}
+                        </button>
+                ))}
+                <span className="mx-1 w-px h-5 bg-white/10" />
+                {CHIP_QUICK_ADDS.map((amt) => (
+                        <button key={`plus-${amt}`} onClick={() => onChange(clamp(bet + amt))} disabled={disabled || bet >= balance} className="px-2.5 py-1.5 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 text-neutral-900 text-xs font-bold shadow disabled:opacity-30">
+                          +{amt}
+                        </button>
+                ))}
+              </div>
+            </div>
+    );
+  }
+
+  function ActionControls({ onHit, onStand, disabled }) {
+    const baseBtn = "flex-1 rounded-xl py-4 flex items-center justify-center gap-2 text-white font-bold text-sm shadow-lg disabled:opacity-40";
+    return (
+            <div className="flex gap-3">
+              <button onClick={onHit} disabled={disabled} className={baseBtn} style={{ background: "linear-gradient(160deg,#34d399,#059669)" }}>
+                <Plus className="w-4 h-4" /> HIT
+              </button>
+              <button onClick={onStand} disabled={disabled} className={baseBtn} style={{ background: "linear-gradient(160deg,#f87171,#dc2626)" }}>
+                <X className="w-4 h-4" /> STAND
+              </button>
+            </div>
+    );
+  }
+
+  const RESULT_STYLES = {
+    win: { label: "YOU WIN!", color: "#34d399", glow: "rgba(52,211,153,0.55)" },
+    lose: { label: "YOU LOSE", color: "#f87171", glow: "rgba(248,113,113,0.5)" },
+    push: { label: "PUSH", color: "#fbbf24", glow: "rgba(251,191,36,0.5)" },
+  };
+
+  function ResultOverlay({ result, detail, onNewRound }) {
+    if (!result) return null;
+    const style = RESULT_STYLES[result];
+    return (
+            <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+              <div className="flex flex-col items-center gap-4 px-6">
+                <p className="text-5xl font-extrabold tracking-wider text-center" style={{ color: style.color, textShadow: `0 0 30px ${style.glow}, 0 0 70px ${style.glow}` }}>
+                  {style.label}
+                </p>
+                {detail && <p className="text-neutral-200 text-sm font-medium">{detail}</p>}
+                <button onClick={onNewRound} className="mt-2 px-8 py-3 rounded-xl font-extrabold text-base tracking-wider text-white shadow-xl" style={{ background: "linear-gradient(160deg, #34d399 0%, #059669 45%, #065f46 100%)" }}>
+                  NEW ROUND
+                </button>
+              </div>
+            </div>
+    );
+  }
+
+  const STATUS_MESSAGES = { idle: "Set your bet and deal", playing: "Your move" };
+
+  function resultInfo(status, netChange) {
+    if (status === "player_bust" || status === "dealer_win") return { result: "lose", detail: netChange ? `-$${Math.abs(netChange).toFixed(2)}` : undefined };
+    if (status === "dealer_bust" || status === "player_win") return { result: "win", detail: netChange ? `+$${netChange.toFixed(2)}` : undefined };
+    if (status === "push") return { result: "push", detail: "Bet returned" };
+    return { result: null, detail: undefined };
+  }
+
+  function GameplayScreen({ balance, setBalance, onLeaveTable }) {
+    const shoeRef = useRef(createShuffledDeck());
+    const [dealerCards, setDealerCards] = useState([]);
+    const [playerCards, setPlayerCards] = useState([]);
+    const [bet, setBet] = useState(25);
+    const [status, setStatus] = useState("idle");
+    const [netChange, setNetChange] = useState(0);
+
+    const drawCard = useCallback(() => {
+      if (shoeRef.current.length < 4) {
+        shoeRef.current = createShuffledDeck();
+      }
+      return shoeRef.current.pop();
+    }, []);
+
+    const isPlaying = status === "playing";
+    const playerScore = useMemo(() => calculateScore(playerCards), [playerCards]);
+    const dealerScore = useMemo(() => calculateScore(dealerCards), [dealerCards]);
+    const dealerVisibleCards = useMemo(() => isPlaying && dealerCards.length ? [dealerCards[0], { ...dealerCards[1], hidden: true }] : dealerCards, [dealerCards, isPlaying]);
+    const dealerVisibleScore = isPlaying ? calculateScore([dealerCards[0]].filter(Boolean)) : dealerScore;
+
+    const settleRound = useCallback((finalPlayerCards, finalDealerCards, currentBet) => {
+      const pScore = calculateScore(finalPlayerCards);
+      const dScore = calculateScore(finalDealerCards);
+      if (pScore > 21) {
+        setStatus("player_bust"); setNetChange(-currentBet); return;
+      }
+      if (dScore > 21) {
+        setStatus("dealer_bust"); setNetChange(currentBet); setBalance((b) => b + currentBet * 2); return;
+      }
+      if (pScore > dScore) {
+        setStatus("player_win"); setNetChange(currentBet); setBalance((b) => b + currentBet * 2);
+      } else if (pScore < dScore) {
+        setStatus("dealer_win"); setNetChange(-currentBet);
+      } else {
+        setStatus("push"); setNetChange(0); setBalance((b) => b + currentBet);
+      }
+    }, [setBalance]);
+
+    const handleDeal = useCallback(() => {
+      if (bet > balance || bet < BET_MIN) return;
+      setBalance((b) => b - bet);
+      const pCards = [drawCard(), drawCard()];
+      const dCards = [drawCard(), drawCard()];
+      setPlayerCards(pCards); setDealerCards(dCards); setStatus("playing");
+      if (calculateScore(pCards) === 21) {
+        setTimeout(() => settleRound(pCards, dCards, bet), 300);
+      }
+    }, [bet, balance, drawCard, setBalance, settleRound]);
+
+    const handleHit = useCallback(() => {
+      setPlayerCards((prev) => {
+        const next = [...prev, drawCard()];
+        if (calculateScore(next) >= 21) setTimeout(() => settleRound(next, dealerCards, bet), 250);
+        return next;
+      });
+    }, [drawCard, dealerCards, bet, settleRound]);
+
+    const runDealerAndSettle = useCallback((finalPlayerCards) => {
+      let dCards = [...dealerCards];
+      while (calculateScore(dCards) < 17) dCards.push(drawCard());
+      setDealerCards(dCards); settleRound(finalPlayerCards, dCards, bet);
+    }, [dealerCards, drawCard, bet, settleRound]);
+
+    const handleStand = useCallback(() => runDealerAndSettle(playerCards), [playerCards, runDealerAndSettle]);
+
+    const handleNewRound = useCallback(() => {
+      setPlayerCards([]); setDealerCards([]); setStatus("idle"); setNetChange(0);
+    }, []);
+
+    const { result, detail } = resultInfo(status, netChange);
+
+    return (
+            <div className="relative flex flex-col h-full" style={{ background: "radial-gradient(ellipse at 50% 30%, #0f5c3e 0%, #0a3d29 55%, #041f15 100%)" }}>
+              <div className="px-4 pt-3 pb-2 flex items-center justify-between">
+                <Logo compact />
+                <button onClick={onLeaveTable} className="flex items-center gap-1 text-[11px] text-neutral-300 border border-white/20 rounded-full px-2.5 py-1">
+                  <LogOut className="w-3 h-3" /> Leave Table
+                </button>
+                <BalancePill balance={balance} />
+              </div>
+              <div className="flex-1 flex flex-col justify-between px-4 py-2 overflow-hidden">
+                <div className="flex justify-center">
+                  <CardHand label="Dealer's Hand" cards={dealerVisibleCards.length ? dealerVisibleCards : [{ hidden: true }, { hidden: true }]} score={dealerCards.length ? dealerVisibleScore : undefined} badgeColor="bg-neutral-700" />
+                </div>
+                <div className="border-t border-white/10 my-2" />
+                <p className="text-center text-sm font-semibold text-emerald-100/80 my-1">{STATUS_MESSAGES[status] || ""}</p>
+                <div className="flex justify-center">
+                  <CardHand label="Player's Hand" cards={playerCards.length ? playerCards : [{ hidden: true }, { hidden: true }]} score={playerCards.length ? playerScore : undefined} />
+                </div>
+                <div className="mt-2">
+                  <BetControl bet={bet} balance={balance} onChange={setBet} disabled={isPlaying} />
+                </div>
+              </div>
+              <div className="px-4 pb-4 pt-2">
+                {status === "idle" ? (
+                        <button onClick={handleDeal} disabled={bet > balance || bet < BET_MIN} className="w-full py-4 rounded-xl font-extrabold text-lg tracking-wider text-white shadow-xl disabled:opacity-40" style={{ background: "linear-gradient(160deg, #34d399 0%, #059669 45%, #065f46 100%)" }}>
+                          DEAL
+                        </button>
+                ) : (
+                        <ActionControls onHit={handleHit} onStand={handleStand} disabled={!isPlaying} />
+                )}
+              </div>
+              <ResultOverlay result={result} detail={detail} onNewRound={handleNewRound} />
+            </div>
+    );
+  }
+
+  function BlackJack21App() {
+    const [screen, setScreen] = useState("menu");
+    const [balance, setBalance] = useState(1250.0);
+    const handleDeposit = useCallback(() => setBalance((b) => b + 100), []);
+    const handlePlay = useCallback(() => setScreen("gameplay"), []);
+    const handleLeaveTable = useCallback(() => setScreen("menu"), []);
+
+    return (
+            <div className="w-full h-screen max-w-[420px] mx-auto overflow-hidden font-sans bg-neutral-950 flex flex-col">
+              {screen === "menu" ? (
+                      <MainMenu balance={balance} onPlay={handlePlay} onDeposit={handleDeposit} />
+              ) : (
+                      <GameplayScreen balance={balance} setBalance={setBalance} onLeaveTable={handleLeaveTable} />
+              )}
+            </div>
+    );
+  }
+
+  const root = ReactDOM.createRoot(document.getElementById("root"));
+  root.render(<BlackJack21App />);
+</script>
+</body>
+</html>

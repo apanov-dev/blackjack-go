@@ -1,20 +1,22 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"net/http"
+	"os"
 )
-
-func hello(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
-	}
-	fmt.Fprintln(w, "Привет!")
-}
 
 func server() {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", hello)
-	http.ListenAndServe(":8080", mux)
+
+	registerRoutes(mux)
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	if err := http.ListenAndServe(":"+port, withCORS(mux)); err != nil {
+		log.Fatal(err)
+	}
 }

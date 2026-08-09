@@ -2,14 +2,14 @@ package main
 
 import "math/rand"
 
-func deckCreator() []card {
-	deck := make([]card, 0, 52)
+func deckCreator() []Card {
+	deck := make([]Card, 0, 52)
 	ranks := []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"}
 	suit := []string{"Spades", "Hearts", "Diamonds", "Clubs"}
 
 	for _, rankstr := range ranks {
 		for _, suitstr := range suit {
-			newCard := card{
+			newCard := Card{
 				Rank: rankstr,
 				Suit: suitstr,
 			}
@@ -19,7 +19,7 @@ func deckCreator() []card {
 	return deck
 }
 
-func randomPicker(deck []card) (card, []card) { //Выбирает случайную карту из колоды и удаляет ее из колоды
+func randomPicker(deck []Card) (Card, []Card) { // Picks a random card and removes it from the deck.
 	index := rand.Intn(len(deck))
 	choice := deck[index]
 

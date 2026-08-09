@@ -2,13 +2,14 @@ package main
 
 import "strconv"
 
-type card struct {
-	Rank string
-	Suit string
+type Card struct {
+	Rank string `json:"rank"`
+	Suit string `json:"suit"`
 }
 
-func cardTranslate(deck []card) int {
+func cardTranslate(deck []Card) int {
 	count := 0
+	aces := 0
 
 	for _, c := range deck {
 		var value int
@@ -18,6 +19,7 @@ func cardTranslate(deck []card) int {
 			value = 10
 		case "A":
 			value = 11
+			aces++
 		default:
 			var err error
 			value, err = strconv.Atoi(c.Rank)
@@ -26,6 +28,11 @@ func cardTranslate(deck []card) int {
 			}
 		}
 		count += value
+	}
+
+	for count > 21 && aces > 0 {
+		count -= 10
+		aces--
 	}
 
 	return count

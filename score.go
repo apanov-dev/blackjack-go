@@ -1,22 +1,32 @@
 package main
 
-import "fmt"
+type GameStatus string
+
+const (
+	StatusPlaying    GameStatus = "playing"
+	StatusPlayerWin  GameStatus = "player_win"
+	StatusDealerWin  GameStatus = "dealer_win"
+	StatusTie        GameStatus = "tie"
+	StatusPlayerBust GameStatus = "player_bust"
+	StatusDealerBust GameStatus = "dealer_bust"
+)
 
 func instantBJcheck(count int) bool {
-	if count == 21 {
-		return true
-	}
-	return false
+	return count == 21
 }
 
-func winCheck(pscore int, dscore int) {
-	if pscore > dscore {
-		fmt.Println("You win!")
-		startMenu()
-	} else if pscore == dscore {
-		fmt.Println("It's a tie!")
-		startMenu()
+func winCheck(pscore int, dscore int) GameStatus {
+	if pscore > 21 {
+		return StatusPlayerBust
 	}
-	fmt.Println("You lose!")
-	startMenu()
+	if dscore > 21 {
+		return StatusDealerBust
+	}
+	if pscore > dscore {
+		return StatusPlayerWin
+	}
+	if pscore < dscore {
+		return StatusDealerWin
+	}
+	return StatusTie
 }
