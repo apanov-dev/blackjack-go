@@ -12,6 +12,8 @@ Blackjack21 is a mobile-first Blackjack game designed for Telegram Mini Apps. Th
 
 This project was created as a learning project to practice Go backend development, HTTP APIs, game state management, and Telegram Web Apps integration.
 
+Bot: @BlackJack2I_bot
+
 ---
 
 ## Features
